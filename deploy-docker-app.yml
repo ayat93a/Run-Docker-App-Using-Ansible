@@ -55,7 +55,7 @@
       name: docker 
       enabled: true
     when: result.changed
-  - name: create a group called docker
+  - name: create a group called docker if it not exist
     group:
       name: docker
       state: present
@@ -66,18 +66,14 @@
       shell: /bin/bash
       groups: docker
       append: yes
-  - name: check if docker is installed sucsessfully 
-    community.docker.docker_container:
-      name: hello-world
-      image: hello-world
-      state: started
-      remove: yes
-      healthcheck:
-        test: ["CMD", "echo", "Hello"]
-        interval: 1m
-        timeout: 10s
-        retries: 3
-        start_period: 30s
-        start_interval: 10s 
-
-    
+  - name: Reconnect to the server session to update the group membership
+    meta: reset_connection
+- name: check if docker is installed sucsessfully 
+  hosts: aws
+  tasks:
+    - name:
+      community.docker.docker_container:
+        name: hello-world
+        image: hello-world
+        state: started
+        auto_remove: yes
