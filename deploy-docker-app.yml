@@ -3,38 +3,38 @@
   hosts: aws
   become: yes
   tasks:
-  - name: Update apt
+  - name: Ensure that the apt is Updated
     apt:
       update_cache: yes
       force_apt_get: yes
-  - name: Install required packages
+  - name: Make sure that the required packages is installed
     apt: 
       force_apt_get: yes
       name: 
         - ca-certificates
         - curl
       state: present 
-  - name: create directory required for the installation
+  - name: Make syre tgat the directory required for the installation is created
     file:
       path: /etc/apt/keyrings
       state: directory
       mode : '0755'
-  - name: install GPG public key from Docker’s official GPG key.
+  - name: make sute that official Docker's GPG public key is installed.
     get_url:
       url: https://download.docker.com/linux/ubuntu/gpg
       dest: /etc/apt/keyrings/docker.asc
       mode: '0644'
-  - name: add docker repository to the apt
+  - name: Make sure that docker repository is added to the apt repositories
     apt_repository:
       repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable"
       state: present
       filename: docker
     no_log: true
-  - name: Update apt
+  - name: Make sure that apt is updated
     apt:
       update_cache: yes
       force_apt_get: yes
-  - name: install docker packages
+  - name: Ensure that docker packages are installed
     apt:
       force_apt_get: yes
       name: 
@@ -49,29 +49,29 @@
   - name: Show output from the apt task
     debug:
       msg: "{{ result.changed }}"
-  - name: start docker as a service and enable it
+  - name: Make sure that docker started and enabled as a service
     service:
       state: started
       name: docker 
       enabled: true
     when: result.changed
-  - name: create a group called docker if it not exist
+  - name: Enusre that a group called docker is created if it not exist
     group:
       name: docker
       state: present
     when: result.changed
-  - name: add the current user to docker group
+  - name: make sure that the current user is added to docker group
     user:
       name: "{{ansible_user}}"
       shell: /bin/bash
       groups: docker
       append: yes
-  - name: Reconnect to the server session to update the group membership
+  - name: Make sure that the group membership is updated by reconnect to the server session
     meta: reset_connection
 - name: check if docker is installed sucsessfully 
   hosts: aws
   tasks:
-    - name:
+    - name: Ensure that docker is installed sucsessfully 
       community.docker.docker_container:
         name: hello-world
         image: hello-world
