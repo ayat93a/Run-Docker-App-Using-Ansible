@@ -2,11 +2,8 @@
 - name: Install Docker
   hosts: aws
   become: yes
+  gather_facts: yes
   tasks:
-  - name: Ensure that the apt is Updated
-    apt:
-      update_cache: yes
-      force_apt_get: yes
   - name: Make sure that the required packages is installed
     apt:
       force_apt_get: yes
@@ -43,7 +40,6 @@
         - containerd.io
         - docker-buildx-plugin
         - docker-compose-plugin
-        - docker-compose
       state: present
     register: result
   - name: Show output from the apt task
@@ -68,6 +64,9 @@
       append: yes
   - name: Make sure that the group membership is updated by reconnect to the server session
     meta: reset_connection
+  - name: Wait for the connection to be established
+    wait_for_connection:
+      timeout: 30
 - name: check if docker is installed sucsessfully
   hosts: aws
   tasks:
@@ -83,7 +82,7 @@
     - name: clone the artifact in the control machine
       git:
         repo: https://github.com/ayat93a/nodeJs-app-for-testing.git
-        dest: /home/ubuntu/nodeJs-app-for-testing
+        dest: "{{ ansible_user_dir }}/nodeJs-app-for-testing"
         clone: yes
         update: yes
 - name: Deploy node app as a docker container
@@ -91,23 +90,23 @@
   tasks:
     - name: make sure that the artifact is copied to the remote server
       copy:
-        src: /home/ubuntu/nodeJs-app-for-testing/node-app.tar.gz
-        dest: /home/ubuntu/node-app.tar.gz
-        owner: ubuntu
-        group: ubuntu
+        src: "{{ ansible_user_dir }}/nodeJs-app-for-testing/node-app.tar.gz"
+        dest: "{{ ansible_user_dir }}/node-app.tar.gz"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
         mode: '0755'
     - name: make syre that nodeApp is exist
       file:
-        path: /home/ubuntu/nodeApp
+        path: "{{ ansible_user_dir }}/nodeApp"
         state: directory
-        owner: ubuntu
-        group: ubuntu
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
         mode: '0755'
     - name: make sure that the last version of the artifact is up-to-date
       unarchive:
-        src: /home/ubuntu/node-app.tar.gz
-        dest: /home/ubuntu/nodeApp
+        src: "{{ ansible_user_dir }}/node-app.tar.gz"
+        dest: "{{ ansible_user_dir }}/nodeApp"
         remote_src: yes
     - name: Run Docker container from docker compose
       community.docker.docker_compose_v2:
-        project_src: /home/ubuntu/nodeApp
+        project_src: "{{ ansible_user_dir }}/nodeApp"
