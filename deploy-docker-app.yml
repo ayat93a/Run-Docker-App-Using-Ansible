@@ -1,0 +1,83 @@
+---
+- name: Install Docker 
+  hosts: aws
+  become: yes
+  tasks:
+  - name: Update apt
+    apt:
+      update_cache: yes
+      force_apt_get: yes
+  - name: Install required packages
+    apt: 
+      force_apt_get: yes
+      name: 
+        - ca-certificates
+        - curl
+      state: present 
+  - name: create directory required for the installation
+    file:
+      path: /etc/apt/keyrings
+      state: directory
+      mode : '0755'
+  - name: install GPG public key from Docker’s official GPG key.
+    get_url:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      dest: /etc/apt/keyrings/docker.asc
+      mode: '0644'
+  - name: add docker repository to the apt
+    apt_repository:
+      repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable"
+      state: present
+      filename: docker
+    no_log: true
+  - name: Update apt
+    apt:
+      update_cache: yes
+      force_apt_get: yes
+  - name: install docker packages
+    apt:
+      force_apt_get: yes
+      name: 
+        - docker-ce 
+        - docker-ce-cli 
+        - containerd.io 
+        - docker-buildx-plugin 
+        - docker-compose-plugin
+        - docker-compose
+      state: present
+    register: result
+  - name: Show output from the apt task
+    debug:
+      msg: "{{ result.changed }}"
+  - name: start docker as a service and enable it
+    systemd_service:
+      state: started
+      name: docker 
+      enabled: true
+    when: result.changed
+  - name: create a group called docker
+    group:
+      name: docker
+      state: present
+    when: result.changed
+  - name: add the current user to docker group
+    user:
+      name: "{{ansible_user}}"
+      shell: /bin/bash
+      groups: docker
+      append: yes
+  - name: check if docker is installed sucsessfully 
+    community.docker.docker_container:
+      name: hello-world
+      image: hello-world
+      state: started
+      remove: yes
+      healthcheck:
+        test: ["CMD", "echo", "Hello"]
+        interval: 1m
+        timeout: 10s
+        retries: 3
+        start_period: 30s
+        start_interval: 10s 
+
+    
