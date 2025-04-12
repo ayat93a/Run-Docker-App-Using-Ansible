@@ -1,5 +1,5 @@
 ---
-- name: Install Docker 
+- name: Install Docker
   hosts: aws
   become: yes
   tasks:
@@ -8,12 +8,12 @@
       update_cache: yes
       force_apt_get: yes
   - name: Make sure that the required packages is installed
-    apt: 
+    apt:
       force_apt_get: yes
-      name: 
+      name:
         - ca-certificates
         - curl
-      state: present 
+      state: present
   - name: Make syre tgat the directory required for the installation is created
     file:
       path: /etc/apt/keyrings
@@ -37,11 +37,11 @@
   - name: Ensure that docker packages are installed
     apt:
       force_apt_get: yes
-      name: 
-        - docker-ce 
-        - docker-ce-cli 
-        - containerd.io 
-        - docker-buildx-plugin 
+      name:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+        - docker-buildx-plugin
         - docker-compose-plugin
         - docker-compose
       state: present
@@ -52,7 +52,7 @@
   - name: Make sure that docker started and enabled as a service
     service:
       state: started
-      name: docker 
+      name: docker
       enabled: true
     when: result.changed
   - name: Enusre that a group called docker is created if it not exist
@@ -68,12 +68,46 @@
       append: yes
   - name: Make sure that the group membership is updated by reconnect to the server session
     meta: reset_connection
-- name: check if docker is installed sucsessfully 
+- name: check if docker is installed sucsessfully
   hosts: aws
   tasks:
-    - name: Ensure that docker is installed sucsessfully 
+    - name: Ensure that docker is installed sucsessfully
       community.docker.docker_container:
         name: hello-world
         image: hello-world
         state: started
         auto_remove: yes
+- name: Ensure that the node artifact is up-to-date
+  hosts: localhost
+  tasks:
+    - name: clone the artifact in the control machine
+      git:
+        repo: https://github.com/ayat93a/nodeJs-app-for-testing.git
+        dest: /home/ubuntu/nodeJs-app-for-testing
+        clone: yes
+        update: yes
+- name: Deploy node app as a docker container
+  hosts: aws
+  tasks:
+    - name: make sure that the artifact is copied to the remote server
+      copy:
+        src: /home/ubuntu/nodeJs-app-for-testing/node-app.tar.gz
+        dest: /home/ubuntu/node-app.tar.gz
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+    - name: make syre that nodeApp is exist
+      file:
+        path: /home/ubuntu/nodeApp
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+    - name: make sure that the last version of the artifact is up-to-date
+      unarchive:
+        src: /home/ubuntu/node-app.tar.gz
+        dest: /home/ubuntu/nodeApp
+        remote_src: yes
+    - name: Run Docker container from docker compose
+      community.docker.docker_compose_v2:
+        project_src: /home/ubuntu/nodeApp
