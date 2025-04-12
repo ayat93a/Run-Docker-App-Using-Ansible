@@ -50,7 +50,7 @@
     debug:
       msg: "{{ result.changed }}"
   - name: start docker as a service and enable it
-    systemd_service:
+    service:
       state: started
       name: docker 
       enabled: true
