@@ -95,18 +95,49 @@
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: '0755'
-    - name: make syre that nodeApp is exist
+    - name: make sure that nodeApp  directory is exist
       file:
         path: "{{ ansible_user_dir }}/nodeApp"
         state: directory
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
         mode: '0755'
-    - name: make sure that the last version of the artifact is up-to-date
+    - name: make sure that the last version of the artifact is untar
       unarchive:
         src: "{{ ansible_user_dir }}/node-app.tar.gz"
         dest: "{{ ansible_user_dir }}/nodeApp"
         remote_src: yes
+    - name: Make sure that there is a network called app
+      community.docker.docker_network:
+        name: app
+        state: present
     - name: Run Docker container from docker compose
       community.docker.docker_compose_v2:
         project_src: "{{ ansible_user_dir }}/nodeApp"
+      register: nodeapp_output
+    - name: Make sure that the container is run successfully
+      debug:
+        msg: "{{ nodeapp_output.stderr_lines }} in {{ nodeapp_output.containers[0].Networks }} "
+- name: Deploy Redis Container
+  hosts: aws
+  tasks:
+    - name: Ensure that redis official image exist
+      community.docker.docker_image_pull:
+        name: redis
+    - name: Ensure that a volume with name mydata is exists
+      community.docker.docker_volume:
+        name: mydata
+    - name: make sure that the redis container is exist
+      community.docker.docker_container:
+        name: node-app-redis
+        image: redis
+        state: started
+        recreate: true
+        exposed_ports:
+          - 6379
+        published_ports:
+          - "6379:6379"
+        volumes:
+          - /mydata:/data
+        networks:
+          - name: app
