@@ -1,0 +1,143 @@
+---
+- name: Install Docker
+  hosts: aws
+  become: yes
+  gather_facts: yes
+  tasks:
+  - name: Make sure that the required packages is installed
+    apt:
+      force_apt_get: yes
+      name:
+        - ca-certificates
+        - curl
+      state: present
+  - name: Make syre tgat the directory required for the installation is created
+    file:
+      path: /etc/apt/keyrings
+      state: directory
+      mode : '0755'
+  - name: make sute that official Docker's GPG public key is installed.
+    get_url:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      dest: /etc/apt/keyrings/docker.asc
+      mode: '0644'
+  - name: Make sure that docker repository is added to the apt repositories
+    apt_repository:
+      repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable"
+      state: present
+      filename: docker
+    no_log: true
+  - name: Make sure that apt is updated
+    apt:
+      update_cache: yes
+      force_apt_get: yes
+  - name: Ensure that docker packages are installed
+    apt:
+      force_apt_get: yes
+      name:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+        - docker-buildx-plugin
+        - docker-compose-plugin
+      state: present
+    register: result
+  - name: Show output from the apt task
+    debug:
+      msg: "{{ result.changed }}"
+  - name: Make sure that docker started and enabled as a service
+    service:
+      state: started
+      name: docker
+      enabled: true
+    when: result.changed
+  - name: Enusre that a group called docker is created if it not exist
+    group:
+      name: docker
+      state: present
+    when: result.changed
+  - name: make sure that the current user is added to docker group
+    user:
+      name: "{{ansible_user}}"
+      shell: /bin/bash
+      groups: docker
+      append: yes
+  - name: Make sure that the group membership is updated by reconnect to the server session
+    meta: reset_connection
+  - name: Wait for the connection to be established
+    wait_for_connection:
+      timeout: 30
+- name: check if docker is installed sucsessfully
+  hosts: aws
+  tasks:
+    - name: Ensure that docker is installed sucsessfully
+      community.docker.docker_container:
+        name: hello-world
+        image: hello-world
+        state: started
+        auto_remove: yes
+- name: Ensure that the node artifact is up-to-date
+  hosts: localhost
+  tasks:
+    - name: clone the artifact in the control machine
+      git:
+        repo: https://github.com/ayat93a/nodeJs-app-for-testing.git
+        dest: "{{ ansible_user_dir }}/nodeJs-app-for-testing"
+        clone: yes
+        update: yes
+- name: Deploy node app as a docker container
+  hosts: aws
+  tasks:
+    - name: make sure that the artifact is copied to the remote server
+      copy:
+        src: "{{ ansible_user_dir }}/nodeJs-app-for-testing/node-app.tar.gz"
+        dest: "{{ ansible_user_dir }}/node-app.tar.gz"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+    - name: make sure that nodeApp  directory is exist
+      file:
+        path: "{{ ansible_user_dir }}/nodeApp"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+    - name: make sure that the last version of the artifact is untar
+      unarchive:
+        src: "{{ ansible_user_dir }}/node-app.tar.gz"
+        dest: "{{ ansible_user_dir }}/nodeApp"
+        remote_src: yes
+    - name: Make sure that there is a network called app
+      community.docker.docker_network:
+        name: app
+        state: present
+    - name: Run Docker container from docker compose
+      community.docker.docker_compose_v2:
+        project_src: "{{ ansible_user_dir }}/nodeApp"
+      register: nodeapp_output
+    - name: Make sure that the container is run successfully
+      debug:
+        msg: "{{ nodeapp_output.stderr_lines }} in {{ nodeapp_output.containers[0].Networks }} "
+- name: Deploy Redis Container
+  hosts: aws
+  tasks:
+    - name: Ensure that redis official image exist
+      community.docker.docker_image_pull:
+        name: redis
+    - name: Ensure that a volume with name mydata is exists
+      community.docker.docker_volume:
+        name: mydata
+    - name: make sure that the redis container is exist
+      community.docker.docker_container:
+        name: node-app-redis
+        image: redis
+        state: started
+        recreate: true
+        exposed_ports:
+          - 6379
+        published_ports:
+          - "6379:6379"
+        volumes:
+          - /mydata:/data
+        networks:
+          - name: app
