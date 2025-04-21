@@ -1,0 +1,9 @@
+  - name: Make sure that docker started and enabled as a service
+    service:
+      state: started
+      name: docker
+      enabled: true
+  - name: Enusre that a group called docker is created if it not exist
+    group:
+      name: docker
+      state: present

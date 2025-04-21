@@ -1,6 +1,9 @@
 ---
 - name: Install Docker
   hosts: aws
+  handlers:
+    - name: Run docker as a service
+      include_tasks: deploy-docker-app.yml
   become: yes
   gather_facts: yes
   tasks:
@@ -42,20 +45,11 @@
         - docker-compose-plugin
       state: present
     register: result
+    notify:
+      - Run docker as a service
   - name: Show output from the apt task
     debug:
       msg: "{{ result.changed }}"
-  - name: Make sure that docker started and enabled as a service
-    service:
-      state: started
-      name: docker
-      enabled: true
-    when: result.changed
-  - name: Enusre that a group called docker is created if it not exist
-    group:
-      name: docker
-      state: present
-    when: result.changed
   - name: make sure that the current user is added to docker group
     user:
       name: "{{ansible_user}}"
